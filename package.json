@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "start:api": "node apps/api/src/main.js",
-    "check": "node --check apps/api/src/main.js"
+    "check": "node --check apps/api/src/main.js",
+    "reset:db": "node scripts/reset-demo-db.mjs",
+    "seed:demo": "node scripts/seed-demo-data.mjs",
+    "demo": "bash scripts/demo.sh"
   }
 }
