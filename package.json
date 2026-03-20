@@ -1,0 +1,10 @@
+{
+  "name": "matchmaking-iaps",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start:api": "node apps/api/src/main.js",
+    "check": "node --check apps/api/src/main.js"
+  }
+}
