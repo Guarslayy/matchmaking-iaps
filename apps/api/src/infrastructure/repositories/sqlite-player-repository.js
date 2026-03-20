@@ -1,38 +1,36 @@
 import { Player } from '../../domain/entities/player.js';
-import { db } from '../db/database.js';
+import { nextId, readStore, updateStore } from '../db/database.js';
 
 export class SqlitePlayerRepository {
   create(name, nowIso, initialElo = 1200) {
-    const statement = db.prepare('INSERT INTO players (name, elo, games_played, created_at) VALUES (?, ?, ?, ?)');
-    const result = statement.run(name, initialElo, 0, nowIso);
-    return Player.createNew(Number(result.lastInsertRowid), name, nowIso, initialElo);
+    return updateStore((store) => {
+      const player = {
+        id: nextId(store, 'players'),
+        name,
+        elo: initialElo,
+        gamesPlayed: 0,
+        createdAt: nowIso,
+      };
+      store.players.push(player);
+      return new Player(player);
+    });
   }
 
   findById(id) {
-    const statement = db.prepare('SELECT * FROM players WHERE id = ?');
-    const row = statement.get(id);
-    return row ? this.#mapRow(row) : null;
+    const store = readStore();
+    const row = store.players.find((player) => player.id === id);
+    return row ? new Player(row) : null;
   }
 
   update(player) {
-    const data = player.toJSON();
-    db.prepare('UPDATE players SET name = ?, elo = ?, games_played = ?, created_at = ? WHERE id = ?').run(
-      data.name,
-      data.elo,
-      data.gamesPlayed,
-      data.createdAt,
-      data.id,
-    );
-    return player;
-  }
-
-  #mapRow(row) {
-    return new Player({
-      id: row.id,
-      name: row.name,
-      elo: row.elo,
-      gamesPlayed: row.games_played,
-      createdAt: row.created_at,
+    return updateStore((store) => {
+      const data = player.toJSON();
+      const index = store.players.findIndex((entry) => entry.id === data.id);
+      if (index === -1) {
+        throw new Error(`Player ${data.id} not found`);
+      }
+      store.players[index] = data;
+      return new Player(data);
     });
   }
 }
