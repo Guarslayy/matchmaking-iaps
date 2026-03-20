@@ -1,39 +1,88 @@
-# Примерный набор тасков находится в Issues
+# Matchmaking System IAPS
 
-# Каждый pull request кидать через code review от guarslay во избежание merge конфликтов 
+Backend-first MVP для дисциплины **IAPS21.1**. Проект моделирует очередь игроков, работу алгоритмов матчмейкинга и симуляцию матчей без зависимости от фронтенда.
 
-# Проект "Matchmaking System IAPS"
+## Текущий стек
 
-Этот репозиторий содержит прототип системы подбора соперников для дисциплины **IAPS21.1**. Проект моделирует очередь игроков и работу различных алгоритмов матчмейкинга. Цель — создать простую, но масштабируемую систему, позволяющую сравнивать эффективность различных алгоритмов подбора.
+- **Backend**: Node.js (ES modules, layered architecture, built-in `node:http`)
+- **Database**: SQLite (`node:sqlite`)
+- **Monorepo**: lightweight monorepo layout (no external packages required for the API demo)
+- **Shared package**: DTO и общие типы в `packages/shared`
 
-## Примерная структура монорепозитория
+## Улучшённая архитектура
 
+Проект разделён на 4 уровня:
+
+1. **Domain** — сущности, расчёт ELO, алгоритмы матчмейкинга.
+2. **Application** — сценарии (`registerPlayer`, `runMatchmaking`, `completeMatch`, queries).
+3. **Infrastructure** — SQLite, репозитории, random result resolver.
+4. **Presentation** — HTTP API на встроенном `node:http`.
+
+Главное архитектурное улучшение относительно исходной идеи: алгоритмы возвращают **PairCandidate**, а не `Match`. Это отделяет поиск пары от завершения матча и упрощает развитие системы.
+
+## Реализованные endpoints
+
+- `GET /` — healthcheck
+- `POST /players` — создание игрока
+- `GET /players/:id` — профиль игрока
+- `GET /players/:id/history` — история матчей игрока
+- `POST /match/find` — постановка в очередь и попытка найти матч
+- `GET /metrics?algorithm=baseline|greedy|batch_lite` — агрегированные метрики
+
+## Быстрый старт
+
+### Запуск API
+
+```bash
+npm run start:api
 ```
-matchmaking-iaps/
-│
-├── apps/
-│   ├── api/            # Backend — Node.js/TypeScript (Express)
-│   └── web/            # Frontend — React/TypeScript
-│
-├── packages/
-│   └── shared/         # Общие типы и утилиты (TypeScript)
-│
-├── docs/               # Документация (архитектура, API, задачи)
-│
-└── package.json        # Корневой файл PNPM/NPM workspace
+
+После запуска API будет доступен по адресу `http://localhost:3000`.
+
+### Полный демо-прогон одной командой
+
+```bash
+npm run demo
 ```
 
+Эта команда:
+- очищает demo-базу,
+- поднимает API,
+- создаёт 6 игроков,
+- прогоняет `baseline`, `greedy` и `batch_lite`,
+- показывает профили, историю и метрики,
+- завершает сервер автоматически.
 
-### Что реализовать
+### Отдельные служебные команды
 
-- **Простая база игроков**: хранятся id, имя, рейтинг ELO и история матчей.
-- **Очередь заявок**: игроки встают в очередь, когда нажимают «Find match».
-- **Алгоритмы подбора**: baseline (по ближайшему рейтингу), greedy (учёт времени ожидания), batch lite (подбор в группах).
-- **REST API**: endpoints для регистрации, поиска матчей, просмотра профиля, истории и метрик.
-- **Frontend**: минимальный интерфейс со стартовой страницей, профилем, историей и поп апом с результатом.
+```bash
+npm run reset:db
+npm run seed:demo
+```
 
-Подробные спецификации доступны в файлах:
+`seed:demo` полезен, если API уже запущен и нужно быстро наполнить систему демонстрационными игроками.
 
-- `docs/ARCHITECTURE.md` — описание архитектуры слоёв, доменных сущностей и взаимодействий.
-- `docs/API.md` — описание HTTP‑интерфейсов.
-- `docs/TASKS.md` — список задач (issues) с описаниями и критериями приёмки.
+## Сценарий для презентации
+
+1. Выполнить `npm run demo`.
+2. Показать, что для каждого алгоритма сначала приходит состояние `waiting`, а затем — готовый матч.
+3. Показать обновлённый профиль игрока и историю матчей.
+4. Показать метрики по каждому алгоритму.
+
+## Примеры ручных запросов
+
+Создание игрока:
+
+```bash
+curl -X POST http://localhost:3000/players \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Ivan"}'
+```
+
+Поиск матча:
+
+```bash
+curl -X POST http://localhost:3000/match/find \
+  -H 'Content-Type: application/json' \
+  -d '{"playerId":1,"algorithm":"baseline"}'
+```
