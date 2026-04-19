@@ -25,7 +25,7 @@
 - **Elo** — модуль, реализующий формулу расчёта нового рейтинга ELO на основе текущего рейтинга игроков и результата.
 - **Score** — функция оценки качества пары игроков. Учёт разницы рейтингов, времени ожидания, баланса цвета и того, играли ли эти игроки недавно.
 - **MatchmakingAlgorithm** — интерфейс для алгоритмов подбора: определяет метод `findPair(queue: QueueRequest[]): Match | null`.
-- **Baseline**, **Greedy**, **BatchLite** — реализации `MatchmakingAlgorithm`.
+- **Baseline**, **Greedy**, **BatchLite**, **HybridWeighted** — реализации `MatchmakingAlgorithm`.
 
 ### 2. Services (Application)
 
@@ -81,7 +81,7 @@
 
 ### Поиск матча
 
-1. UI отправляет POST `/match/find` с `playerId` и выбранным `algorithmType` (baseline, greedy, batch).
+1. UI отправляет POST `/match/find` с `playerId` и выбранным `algorithmType` (baseline, greedy, batch_lite, hybrid_weighted).
 2. Backend добавляет заявку в очередь (`QueueRepository`).
 3. Запускается выбранный алгоритм, который анализирует очередь и находит оптимальную пару. Если пара найдена, создаётся объект `Match`.
 4. Сервис `completeMatch` случайно определяет победителя (50/50), пересчитывает ELO обоих игроков через `Elo`, сохраняет `Match` в репозиторий.
