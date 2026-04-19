@@ -61,7 +61,7 @@ async function runDemo() {
     await waitForServer();
 
     const created = [];
-    for (const name of ['Anna', 'Boris', 'Clara', 'David', 'Eva', 'Felix']) {
+    for (const name of ['Anna', 'Boris', 'Clara', 'David', 'Eva', 'Felix', 'Gina', 'Henry']) {
       created.push((await post('/players', { name })).data);
     }
     printStep('Players created', created);
@@ -80,6 +80,10 @@ async function runDemo() {
     printStep('Baseline metrics', await get('/metrics?algorithm=baseline'));
     printStep('Greedy metrics', await get('/metrics?algorithm=greedy'));
     printStep('Batch metrics', await get('/metrics?algorithm=batch_lite'));
+
+    printStep('Hybrid enqueue', await post('/match/find', { playerId: created[6].id, algorithm: 'hybrid_weighted', alpha: 0.7, beta: 0.3 }));
+    printStep('Hybrid match', await post('/match/find', { playerId: created[7].id, algorithm: 'hybrid_weighted', alpha: 0.7, beta: 0.3 }));
+    printStep('Hybrid metrics', await get('/metrics?algorithm=hybrid_weighted'));
   } finally {
     server.kill('SIGTERM');
     await sleep(500);

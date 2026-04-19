@@ -91,12 +91,22 @@
 **Тело запроса**
 
 - `playerId` (number) — идентификатор игрока, который ищет матч.
-- `algorithm` (string) — тип алгоритма: `"baseline"`, `"greedy"` или `"batch_lite"`. Если не указан, используется `baseline`.
+- `algorithm` (string) — тип алгоритма: `"baseline"`, `"greedy"`, `"batch_lite"` или `"hybrid_weighted"`. Если не указан, используется `baseline`.
 
 **Ответ**
 
 - `200 OK`, тело: объект `MatchResultDTO`.
 - Если соперник не найден (например, один игрок в очереди), возвращается `202 Accepted` с полем `{ message: "waiting" }`.
+
+### Гибридный алгоритм `hybrid_weighted`
+
+Алгоритм рассчитывает скор пары по формуле:
+
+- `ratingScore = 1 / (1 + abs(deltaRating))`
+- `waitScore = average(waitASeconds, waitBSeconds)`
+- `finalScore = alpha * normalizedRatingScore + beta * normalizedWaitScore`
+
+Где `alpha` и `beta` — опциональные коэффициенты из `POST /match/find` (по умолчанию `0.7` и `0.3`). После расчёта всех пар алгоритм сортирует кандидатов и жадно выбирает непересекающиеся пары.
 
 ### Получение метрик по алгоритму
 
@@ -106,7 +116,7 @@
 
 **Параметры запроса**
 
-- `algorithm` (string) — обязательный параметр: `baseline`, `greedy` или `batch_lite`.
+- `algorithm` (string) — обязательный параметр: `baseline`, `greedy`, `batch_lite` или `hybrid_weighted`.
 
 **Ответ**
 

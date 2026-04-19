@@ -93,7 +93,23 @@ export async function handleHttpRequest(req, res, deps) {
         sendJson(res, 400, { message: 'unknown algorithm' });
         return;
       }
-      const result = deps.runMatchmaking.execute(body.playerId, algorithm, new Date().toISOString());
+
+      const options = {};
+      if (algorithm === 'hybrid_weighted') {
+        if (body.alpha !== undefined && typeof body.alpha !== 'number') {
+          sendJson(res, 400, { message: 'alpha must be a number' });
+          return;
+        }
+        if (body.beta !== undefined && typeof body.beta !== 'number') {
+          sendJson(res, 400, { message: 'beta must be a number' });
+          return;
+        }
+
+        options.alpha = body.alpha ?? 0.7;
+        options.beta = body.beta ?? 0.3;
+      }
+
+      const result = deps.runMatchmaking.execute(body.playerId, algorithm, new Date().toISOString(), options);
       if (result.message === 'waiting') {
         sendJson(res, 202, result);
         return;
