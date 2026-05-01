@@ -1,130 +1,239 @@
 # REST API
 
-Этот документ описывает основные HTTP интерфейсы backend‑сервера. Все ответы возвращаются в формате JSON. Для упрощения авторизации нет: сервис предполагает, что `playerId` хранится на клиенте после создания игрока.
+The backend exposes a small JSON API over the built-in Node.js HTTP server. Authentication is intentionally omitted because this is a lab simulator.
 
-## Форматы данных
+Base URL:
 
-**PlayerDTO**
+```text
+http://localhost:3000
+```
 
-- `id`: число — уникальный идентификатор игрока
-- `name`: строка — имя игрока
-- `elo`: число — текущий рейтинг ELO
-- `gamesPlayed`: число — общее количество сыгранных матчей
-- `createdAt`: строка (ISO 8601) — дата/время создания игрока
+All request and response bodies are JSON.
 
-**MatchDTO**
+## Data Shapes
 
-- `id`: число — идентификатор матча
-- `playerId`: число — id текущего игрока (для возвращаемых матчей)
-- `opponentId`: число — id соперника
-- `result`: строка (`"win"` или `"lose"`)
-- `eloBefore`: число — рейтинг игрока до матча
-- `eloAfter`: число — рейтинг игрока после матча
-- `opponentElo`: число — рейтинг соперника в момент матча
-- `color`: строка (`"white"` или `"black"`) — какой цвет фигур был у игрока
-- `algorithmUsed`: строка — алгоритм, использованный для подбора пары
-- `createdAt`: строка (ISO 8601) — время окончания матча
+### PlayerDTO
 
-**MatchResultDTO**
+```json
+{
+  "id": 1,
+  "name": "Ariana",
+  "elo": 1029,
+  "gamesPlayed": 1,
+  "createdAt": "2026-05-01T10:00:00.000Z"
+}
+```
 
-- `match`: объект `MatchDTO` — информация о сыгранном матче
-- `player`: объект `PlayerDTO` — обновлённые данные игрока (новый ELO и количество игр)
-- `opponent`: объект `PlayerDTO` — данные соперника в момент матча
+### MatchDTO
 
-**MetricsDTO**
+```json
+{
+  "id": 1,
+  "playerId": 1,
+  "opponentId": 2,
+  "result": "win",
+  "eloBefore": 1010,
+  "eloAfter": 1029,
+  "opponentElo": 1080,
+  "color": "white",
+  "algorithmUsed": "greedy",
+  "createdAt": "2026-05-01T10:00:00.000Z"
+}
+```
 
-- `algorithm`: строка — имя алгоритма (`"baseline"`, `"greedy"`, `"batch_lite"`)
-- `avgWaitTime`: число — среднее время ожидания (в секундах)
-- `avgRatingDiff`: число — средняя абсолютная разница рейтингов в матчах
-- `avgComputeTime`: число — среднее время работы алгоритма (в миллисекундах)
+### Round Metrics
+
+```json
+{
+  "playersCount": 12,
+  "pairsCount": 6,
+  "matchedPlayers": 12,
+  "unmatchedPlayers": 0,
+  "matchRate": 1,
+  "avgRatingDiff": 78.33,
+  "minRatingDiff": 60,
+  "maxRatingDiff": 160,
+  "avgWaitTime": 42,
+  "avgComputeTimeMs": 0.1234,
+  "qualityScore": 87
+}
+```
 
 ## Endpoints
 
-### Создание игрока
+### Healthcheck
 
-**`POST /players`**
+```http
+GET /
+```
 
-Создаёт нового игрока.
+Response:
 
-**Тело запроса**
+```json
+{
+  "message": "API is running"
+}
+```
 
-- `name` (string) — имя игрока.
+### List Players
 
-**Ответ**
+```http
+GET /players
+```
 
-- `201 Created`, тело: объект `PlayerDTO`.
+Returns all players sorted by ELO descending.
 
-### Получение профиля игрока
+### Create Player
 
-**`GET /players/:id`**
+```http
+POST /players
+```
 
-Возвращает информацию о профиле игрока.
+Request:
 
-**Параметры пути**
+```json
+{
+  "name": "Ivan",
+  "initialElo": 1200
+}
+```
 
-- `id` — идентификатор игрока.
+`initialElo` is optional and defaults to `1200`.
 
-**Ответ**
+### Get Player
 
-- `200 OK`, тело: объект `PlayerDTO`.
+```http
+GET /players/:id
+```
 
-### Получение истории матчей
+Returns `404` when the player does not exist.
 
-**`GET /players/:id/history`**
+### Get Player History
 
-Возвращает список матчей для указанного игрока, отсортированный по времени убывания.
+```http
+GET /players/:id/history
+```
 
-**Параметры пути**
+Returns `MatchDTO[]` for the selected player, sorted from newest to oldest.
 
-- `id` — идентификатор игрока.
+### Find Match For One Player
 
-**Ответ**
+```http
+POST /match/find
+```
 
-- `200 OK`, тело: массив `MatchDTO[]`.
+Request:
 
-### Поиск соперника и запуск матча
+```json
+{
+  "playerId": 1,
+  "algorithm": "hybrid_weighted",
+  "alpha": 0.7,
+  "beta": 0.3
+}
+```
 
-**`POST /match/find`**
+Valid algorithms:
 
-Запускает процесс матчмейкинга: добавляет игрока в очередь, выбирает соперника согласно алгоритму и симулирует матч (результат определяется случайно).
+- `baseline`
+- `greedy`
+- `batch_lite`
+- `hybrid_weighted`
 
-**Тело запроса**
+For `hybrid_weighted`, `alpha` and `beta` are optional.
 
-- `playerId` (number) — идентификатор игрока, который ищет матч.
-- `algorithm` (string) — тип алгоритма: `"baseline"`, `"greedy"`, `"batch_lite"` или `"hybrid_weighted"`. Если не указан, используется `baseline`.
+Responses:
 
-**Ответ**
+- `200 OK` with `MatchResultDTO` when a match is found.
+- `202 Accepted` with `{ "message": "waiting" }` when no pair exists yet.
+- `404 Not Found` when `playerId` does not exist.
 
-- `200 OK`, тело: объект `MatchResultDTO`.
-- Если соперник не найден (например, один игрок в очереди), возвращается `202 Accepted` с полем `{ message: "waiting" }`.
+### Get Aggregate Metrics
 
-### Гибридный алгоритм `hybrid_weighted`
+```http
+GET /metrics?algorithm=greedy
+```
 
-Алгоритм рассчитывает скор пары по формуле:
+Returns aggregate metrics collected from completed matches for the requested algorithm.
 
-- `ratingScore = 1 / (1 + abs(deltaRating))`
-- `waitScore = average(waitASeconds, waitBSeconds)`
-- `finalScore = alpha * normalizedRatingScore + beta * normalizedWaitScore`
+### Reset Demo Store
 
-Где `alpha` и `beta` — опциональные коэффициенты из `POST /match/find` (по умолчанию `0.7` и `0.3`). После расчёта всех пар алгоритм сортирует кандидатов и жадно выбирает непересекающиеся пары.
+```http
+POST /demo/reset
+```
 
-### Получение метрик по алгоритму
+Clears players, matches, queue requests, algorithm metrics, and simulation rounds.
 
-**`GET /metrics`**
+### Seed Demo Data
 
-Возвращает усреднённые показатели качества для заданного алгоритма.
+```http
+POST /demo/seed
+```
 
-**Параметры запроса**
+Resets the store and creates a repeatable demo pool of 12 players with different ELO ratings.
 
-- `algorithm` (string) — обязательный параметр: `baseline`, `greedy`, `batch_lite` или `hybrid_weighted`.
+### Run Simulation Round
 
-**Ответ**
+```http
+POST /simulation/round
+```
 
-- `200 OK`, тело: объект `MetricsDTO`.
+Runs a full matching round for all players currently in the database.
 
-### Пример последовательности
+Request:
 
-1. **Регистрация**: клиент отправляет `POST /players` с телом `{ \"name\": \"Иван\" }` → получает `PlayerDTO` с `id` = 42.
-2. **Поиск матча**: клиент отправляет `POST /match/find` с телом `{ \"playerId\": 42, \"algorithm\": \"greedy\" }` → получает `MatchResultDTO`.
-3. **Просмотр профиля**: клиент делает `GET /players/42` → видит обновлённый ELO.
-4. **Просмотр истории**: клиент делает `GET /players/42/history` → получает список матчей.
+```json
+{
+  "algorithm": "greedy"
+}
+```
+
+For `hybrid_weighted`:
+
+```json
+{
+  "algorithm": "hybrid_weighted",
+  "alpha": 0.7,
+  "beta": 0.3
+}
+```
+
+Response includes:
+
+- selected algorithm;
+- round metrics;
+- selected pairs;
+- each player's ELO before and after;
+- unmatched players, if any.
+
+### Compare All Algorithms
+
+```http
+POST /simulation/compare
+```
+
+Runs all algorithms on the same seeded demo dataset. This is the preferred endpoint for fair comparison in the frontend.
+
+Important detail: before each algorithm run, the store is reset and seeded with the same demo players. This prevents later algorithms from benefiting or suffering from ELO changes caused by earlier runs.
+
+### List Simulation Rounds
+
+```http
+GET /simulation/rounds?limit=20
+```
+
+Returns recent simulation rounds, newest first.
+
+## Example Flow
+
+```bash
+curl -X POST http://localhost:3000/demo/seed
+
+curl -X POST http://localhost:3000/simulation/round \
+  -H "Content-Type: application/json" \
+  -d "{\"algorithm\":\"greedy\"}"
+
+curl -X POST http://localhost:3000/simulation/compare
+
+curl http://localhost:3000/simulation/rounds?limit=4
+```

@@ -1,379 +1,117 @@
-# Список задач (Issues)
+# Project Tasks
 
-Этот файл содержит перечень задач, которые можно завести в GitHub Issues. Каждая задача включает название, краткое описание и критерии приёмки (Acceptance Criteria). Задачи сгруппированы по этапам разработки.
+This file summarizes the current implementation status and reasonable follow-up tasks.
 
-## Этап A — Настройка репозитория
+## Completed
 
-### 1. Инициализировать монорепозиторий
+- Backend HTTP API on Node.js built-in `node:http`.
+- Layered backend structure:
+  - domain;
+  - application;
+  - infrastructure;
+  - presentation.
+- JSON file persistence.
+- Player registration.
+- Player profile and match history.
+- ELO update after matches.
+- Queue request storage.
+- Single-player matchmaking endpoint.
+- Full simulation round endpoint.
+- Fair comparison endpoint for all algorithms.
+- Demo seed/reset endpoints.
+- Aggregate metrics endpoint.
+- React + Bootstrap frontend dashboard.
+- Algorithm picker.
+- Player pool view.
+- Latest round view.
+- Pair cards with winners and ELO changes.
+- Algorithm comparison cards.
+- Round history.
+- Documentation for API, architecture, and algorithms.
 
-**Описание:**
+## Useful Next Tasks
 
-Создать структуру монорепозитория с каталогами `apps/api`, `apps/web`, `packages/shared` и базовыми конфигурационными файлами (`package.json`, `tsconfig.json`). Настроить workspaces (pnpm или npm) для всех пакетов.
+### 1. Add deterministic experiment mode
 
-**Критерии приёмки:**
+Current match winners are random. For reproducible lab results, add a deterministic mode where the winner is selected by a seeded pseudo-random generator or by rating probability.
 
-- В корне присутствуют папки `apps` и `packages` и файл `package.json` с конфигурацией workspaces.
-- Для каждого пакета настроены собственные `package.json` и `tsconfig.json`.
-- Проект устанавливается одной командой `pnpm install` без ошибок.
+Acceptance criteria:
 
----
+- Same seed produces the same winners.
+- Frontend can trigger deterministic comparison.
+- Report can include repeatable tables.
 
-### 2. Создать пакет `shared` с общими типами
+### 2. Add larger generated datasets
 
-**Описание:**
+The demo pool currently contains 12 players. Add dataset presets:
 
-В каталоге `packages/shared` определить основные TypeScript‑типы (DTO): `PlayerDTO`, `MatchDTO`, `MatchResultDTO`, `MetricsDTO`, `AlgorithmType`. Экспортировать их для использования в backend и frontend.
+- small: 12 players;
+- medium: 50 players;
+- large: 200 players.
 
-**Критерии приёмки:**
+Acceptance criteria:
 
-- Пакет `shared` содержит файл `types.ts` с указанными типами.
-- Типы импортируются без ошибок как из backend, так и из frontend.
+- API can seed selected dataset size.
+- Dashboard can compare algorithms on different sizes.
+- Metrics show compute-time differences more clearly.
 
----
+### 3. Add median and percentile metrics
 
-### 3. Подготовить backend каркас
+Average values can hide bad cases. Add:
 
-**Описание:**
+- median rating difference;
+- 90th percentile rating difference;
+- median wait time;
+- max wait time.
 
-В каталоге `apps/api` создать проект на Node.js/TypeScript. Настроить Express‑сервер, добавить зависимости (`express`, `sqlite`, `knex` или `better-sqlite3`, `ts-node`, `nodemon`). В файле `src/main.ts` инициализировать пустой сервер, который отвечает на корневой маршрут `GET /` сообщением "API is running".
+Acceptance criteria:
 
-**Критерии приёмки:**
+- Metrics are returned from round endpoints.
+- Dashboard shows at least median and worst-case values.
 
-- Сервер запускается командой `pnpm --filter api dev` и отвечает на запросы.
-- Код написан на TypeScript; нет ошибок компиляции.
+### 4. Add automated endpoint tests
 
----
+Add lightweight integration tests for:
 
-### 4. Подготовить frontend каркас
+- `POST /demo/seed`;
+- `POST /simulation/round`;
+- `POST /simulation/compare`;
+- `GET /players`;
+- `GET /simulation/rounds`.
 
-**Описание:**
+Acceptance criteria:
 
-В каталоге `apps/web` создать React‑приложение на TypeScript (например, Vite). Добавить базовую навигацию и компонент `App`, выводящий надпись "Web app is running". Настроить alias на пакет `shared`.
+- Tests can be run by one npm script.
+- Tests reset runtime data before execution.
 
-**Критерии приёмки:**
+### 5. Improve algorithm research section
 
-- Приложение запускается командой `pnpm --filter web dev` и отображает базовый текст.
-- Билд происходит без ошибок.
+Extend `docs/ALGORITHMS.md` with:
 
-## Этап B — Данные и домен
+- sample result tables;
+- screenshots from the dashboard;
+- explanation of why metrics differ between algorithms.
 
-### 5. Реализовать модель Player и репозиторий
+Acceptance criteria:
 
-**Описание:**
+- The document can be used directly in the lab report.
+- Each algorithm has a short conclusion.
 
-В `apps/api/src/domain` создать класс `Player` и связанные интерфейсы. В слое репозитория (`repos/playerRepo.ts`) реализовать методы сохранения, поиска по id и обновления. Настроить таблицу `players` в SQLite с помощью миграций или инициализационного скрипта.
+### 6. Add export results button
 
-**Критерии приёмки:**
+Allow exporting the latest comparison as JSON or CSV for the written report.
 
-- Таблица `players` создаётся при первом запуске.
-- Есть методы `save(player)`, `findById(id)`, `update(player)`, которые корректно работают с базой.
+Acceptance criteria:
 
----
+- Frontend has an export action.
+- Export contains algorithm names and all metrics.
 
-### 6. Реализовать модель Match и репозиторий
+### 7. Optional: move persistence to SQLite
 
-**Описание:**
+JSON is enough for the current lab. SQLite can be added later if the course requires a database section.
 
-Создать класс `Match` в домене и добавить таблицу `matches` в SQLite. В `repos/matchRepo.ts` реализовать методы сохранения нового матча и получения истории матчей для игрока.
+Acceptance criteria:
 
-**Критерии приёмки:**
-
-- Таблица `matches` создаётся при инициализации.
-- Методы `save(match)` и `findByPlayerId(playerId)` возвращают ожидаемые данные.
-
----
-
-### 7. Реализовать модуль ELO
-
-**Описание:**
-
-Создать модуль `domain/elo.ts`, который экспортирует функцию для обновления рейтинга ELO игрока на основе его текущего рейтинга, рейтинга соперника и результата матча. Использовать классическую формулу ELO (K‑фактор можно выбрать 32).
-
-**Критерии приёмки:**
-
-- Модуль экспортирует функцию `updateElo(currentElo, opponentElo, result)`.
-- Функция возвращает новое значение рейтинга (целое число).
-
----
-
-### 8. Реализовать очередь заявок
-
-**Описание:**
-
-В `repos/queueRepo.ts` реализовать структуру хранения заявок `QueueRequest`. Добавить методы для добавления заявки (`enqueue`), извлечения первого элемента (`dequeue`), получения всех заявок (`getAll`) и удаления заявки по id. Можно использовать SQLite или in‑memory структуру.
-
-**Критерии приёмки:**
-
-- Методы очереди работают без ошибок: данные корректно добавляются и извлекаются.
-- При запуске приложения очередь очищается (если реализована in‑memory) или загружается из БД (если реализована на таблице).
-
-## Этап C — Алгоритмы и сервисы
-
-### 9. Реализовать алгоритм baseline
-
-**Описание:**
-
-В папке `domain/algorithms` создать файл `baseline.ts`, реализующий интерфейс `MatchmakingAlgorithm`. Алгоритм должен выбирать пару игроков с минимальной разницей рейтингов из очереди.
-
-**Критерии приёмки:**
-
-- При наличии хотя бы двух заявок алгоритм возвращает пару с минимальной разницей рейтингов.
-- Если заявка одна, возвращается `null` (пара не найдена).
-
----
-
-### 10. Реализовать алгоритм greedy
-
-**Описание:**
-
-В `domain/algorithms/greedy.ts` реализовать алгоритм, который сортирует очередь по времени ожидания и подбирает первую доступную пару с рейтингами внутри допустимого диапазона (например, ±200 ELO). Близкие по времени игроки имеют приоритет.
-
-**Критерии приёмки:**
-
-- Алгоритм выбирает пару среди тех игроков, которые ждут дольше всех.
-- Если нет подходящего соперника по рейтингу, заявка остаётся в очереди.
-
----
-
-### 11. Реализовать алгоритм batch_lite
-
-**Описание:**
-
-В `domain/algorithms/batch_lite.ts` реализовать простую версию batch‑подбора: брать группу первых N заявок (например 20), сортировать по рейтингу и объединять попарно ближайших. Остаток возвращается в очередь.
-
-**Критерии приёмки:**
-
-- При наличии 4+ заявок алгоритм формирует пары, минимизируя суммарную разницу рейтингов.
-- Непарные заявки остаются в очереди для следующего раунда.
-
----
-
-### 12. Реализовать сервис registerPlayer
-
-**Описание:**
-
-Создать сервис `registerPlayer(name)` в папке `services/registerPlayer.ts`. Сервис должен создавать нового игрока, присваивать базовый ELO (например 1200), сохранять его через `PlayerRepository` и возвращать DTO.
-
-**Критерии приёмки:**
-
-- Созданный игрок сохраняется в таблицу `players` с корректными полями.
-- Функция возвращает объект `PlayerDTO`.
-
----
-
-### 13. Реализовать сервис findMatch
-
-**Описание:**
-
-В `services/findMatch.ts` реализовать логику добавления игрока в очередь и поиска соперника выбранным алгоритмом. Если пара найдена, создать `Match`, вызвать сервис `completeMatch` и вернуть результат. Если пара не найдена, вернуть состояние «ожидание».
-
-**Критерии приёмки:**
-
-- При наличии соперника сервис возвращает объект `MatchResultDTO`.
-- При отсутствии соперника возвращается индикатор ожидания.
-
----
-
-### 14. Реализовать сервис completeMatch
-
-**Описание:**
-
-В `services/completeMatch.ts` реализовать симуляцию матча: случайно выбрать победителя, обновить рейтинги обоих игроков через `Elo`, сформировать объект `Match`, сохранить его в `MatchRepository`. Вернуть DTO с обновлёнными данными.
-
-**Критерии приёмки:**
-
-- Исход матча выбирается с вероятностью 50/50.
-- Рейтинги игроков обновляются и сохраняются.
-- Сервис возвращает корректный `MatchResultDTO`.
-
----
-
-### 15. Реализовать сервис getProfile
-
-**Описание:**
-
-В `services/getProfile.ts` реализовать получение профиля игрока по id. Вернуть DTO с именем, ELO и количеством игр.
-
-**Критерии приёмки:**
-
-- Сервис возвращает данные из таблицы `players`.
-- В ответ входит число игр (`gamesPlayed`).
-
----
-
-### 16. Реализовать сервис getHistory
-
-**Описание:**
-
-В `services/getHistory.ts` реализовать загрузку истории матчей игрока. Использовать `MatchRepository` для выборки и сортировки матчей по времени.
-
-**Критерии приёмки:**
-
-- Сервис возвращает массив `MatchDTO[]`, упорядоченный по `createdAt` убывающе.
-
----
-
-### 17. Реализовать сервис getMetrics
-
-**Описание:**
-
-В `services/getMetrics.ts` реализовать расчёт усреднённых метрик: среднее время ожидания, средняя разница рейтингов, среднее время работы алгоритма для заданного типа алгоритма. Метрики можно хранить в памяти или вычислять на основе данных матчей.
-
-**Критерии приёмки:**
-
-- Сервис возвращает объект `MetricsDTO` с корректными значениями.
-- Вычисления не должны блокировать основной поток ( использовать асинхронные методы).
-
-## Этап D — API endpoints
-
-### 18. Реализовать маршруты players
-
-**Описание:**
-
-В `http/routes.ts` создать маршруты `POST /players`, `GET /players/:id`, `GET /players/:id/history`, которые вызывают соответствующие сервисы. Обработать входные параметры и возвращать JSON‑ответы.
-
-**Критерии приёмки:**
-
-- Эндпоинты работают и возвращают правильные статусы и данные.
-- При ошибках (например, игрок не найден) возвращается `404` с сообщением об ошибке.
-
----
-
-### 19. Реализовать маршрут match/find
-
-**Описание:**
-
-Добавить маршрут `POST /match/find`, который принимает `playerId` и `algorithm`, вызывает сервис `findMatch` и возвращает результат. Обрабатывать случаи отсутствия соперника.
-
-**Критерии приёмки:**
-
-- Endpoint возвращает `200` и объект `MatchResultDTO`, если соперник найден.
-- Если соперника нет, возвращается `202` и сообщение "waiting".
-
----
-
-### 20. Реализовать маршрут metrics
-
-**Описание:**
-
-Добавить маршрут `GET /metrics`, который принимает параметр `algorithm` и возвращает метрики. Если параметр отсутствует или неизвестен, возвращать `400 Bad Request`.
-
-**Критерии приёмки:**
-
-- Endpoint корректно обрабатывает валидные и невалидные запросы.
-- Возвращает объект `MetricsDTO`.
-
-## Этап E — Frontend
-
-### 21. Создать компонент StartPage
-
-**Описание:**
-
-На стартовой странице разместить кнопку «Find Match» и выпадающий список для выбора алгоритма (`baseline`, `greedy`, `batch_lite`). При нажатии отправлять запрос на endpoint `POST /match/find`. Обрабатывать состояние «ожидание» (например, выводить сообщение «Ждём соперника…»).
-
-**Критерии приёмки:**
-
-- Компонент отображает кнопку и селект алгоритма.
-- При нажатии вызывается API и отображается результат или состояние ожидания.
-
----
-
-### 22. Создать компонент ProfilePage
-
-**Описание:**
-
-Страница профиля должна отображать имя игрока, текущий рейтинг ELO и количество сыгранных матчей. Загружать данные с `/players/:id`. Добавить кнопку перехода к истории.
-
-**Критерии приёмки:**
-
-- Данные профиля отображаются корректно после загрузки.
-- Ошибки загрузки отображаются пользователю (alert или текст).
-
----
-
-### 23. Создать компонент HistoryPage
-
-**Описание:**
-
-Отображать список матчей в виде таблицы или карточек: дата, соперник, цвет, изменение рейтинга, результат. Данные загружать через `/players/:id/history`.
-
-**Критерии приёмки:**
-
-- История отображается корректно в хронологическом порядке.
-- Если матчей нет, выводить сообщение.
-
----
-
-### 24. Создать компонент MatchResultModal
-
-**Описание:**
-
-После получения `MatchResultDTO` показывать модальное окно с информацией о победе/ поражении, именем соперника и изменением ELO. Модалка должна закрываться по кнопке или автоматически через несколько секунд.
-
-**Критерии приёмки:**
-
-- Модальное окно корректно отображает все поля.
-- Его можно закрыть и далее продолжить работу.
-
----
-
-### 25. Реализовать клиентский API и управление состоянием
-
-**Описание:**
-
-Создать модуль `api/client.ts`, обеспечивающий функции для обращения к серверу: `createPlayer`, `getProfile`, `getHistory`, `findMatch`, `getMetrics`. Настроить глобальный store или context для хранения `playerId` и состояния приложения.
-
-**Критерии приёмки:**
-
-- Все API‑функции возвращают промисы с корректными данными.
-- Состояние игрока сохраняется между перезагрузками (localStorage).
-
-## Этап F — Документация и CI
-
-### 26. Написать документацию по архитектуре и API
-
-**Описание:**
-
-Заполнить файлы `docs/ARCHITECTURE.md` и `docs/API.md` согласно текущей реализации. Добавить диаграммы (при желании) и пояснения, как расширять систему.
-
-**Критерии приёмки:**
-
-- Документы содержат актуальную информацию о слоях, сущностях и эндпоинтах.
-- Отсутствуют орфографические ошибки, текст понятен.
-
----
-
-### 27. Написать README.md
-
-**Описание:**
-
-Обновить `README.md` в корне проекта: описать цель проекта, минимальные требования, шаги для установки и запуска, структуру репозитория и ссылку на документацию.
-
-**Критерии приёмки:**
-
-- README содержит актуальную информацию.
-- Инструкции проходят проверку (процесс установки и запуска без ошибок).
-
----
-
-### 28. Настроить простой CI
-
-**Описание:**
-
-Добавить конфигурацию CI (например, GitHub Actions), которая устанавливает зависимости, запускает сборку backend и frontend, выполняет линтинг и тесты (если появятся). Это поможет обнаруживать ошибки при открытии pull request.
-
-**Критерии приёмки:**
-
-- В репозиторий добавлен файл конфигурации `.github/workflows/ci.yml`.
-- В CI выполняются команды установки и сборки без ошибок.
-
----
-
-## Как использовать этот список
-
-1. Создайте новый проект на GitHub и импортируйте структуру репозитория из этого шаблона.
-2. Создайте доску GitHub Projects с колонками `Backlog`, `To Do`, `In Progress`, `Review`, `Done`.
-3. Для каждой задачи из списка создайте issue, скопируйте название, описание и критерии приёмки. Назначайте ответственного и переносите issue по колонкам.
-4. При выполнении следите, чтобы каждое acceptance criterion было выполнено, прежде чем переходить к следующей задаче.
-
-Этот список содержит базовый набор задач (28 штук), покрывающий основную функциональность. При необходимости команда может добавлять задачи: настройка тестов, улучшение алгоритмов, рефакторинг, улучшение дизайна и так далее.
+- Repository interfaces remain stable.
+- Existing API behavior does not change.
+- Demo still runs without manual setup.

@@ -1,105 +1,234 @@
-# Архитектура проекта
+# Architecture
 
-Этот документ описывает архитектуру прототипа системы матчмейкинга, реализуемой в рамках предмета **IAPS21.1**. Архитектура разделена на несколько слоёв, что упрощает разработку и позволяет разным членам команды работать параллельно.
+The project is a small monorepo with a backend simulation engine and a React dashboard.
 
-## Общий обзор
+## High-Level Flow
 
-Система моделирует очередь игроков и работу различных алгоритмов подбора. Пользователь выбирает алгоритм, система находит соперника, случайно определяет исход матча, обновляет рейтинг ELO и сохраняет результат. UI отражает состояние игрока, показывает историю и предоставляет кнопку для поиска следующего матча.
+```text
+React Dashboard
+  -> REST API
+    -> Application Commands
+      -> Domain Algorithms
+      -> Repositories
+        -> JSON Store
+```
 
-С точки зрения **software engineering**, проект разделён на следующие подсистемы:
+The backend owns the simulation logic. The frontend only requests data, starts rounds, and visualizes the result.
 
-1. **Domain** — чистые модели и бизнес‑правила.
-2. **Application services** — операции, связывающие домен с инфраструктурой.
-3. **Infrastructure** — конкретные реализации хранилищ, адаптеры БД, http‑сервер.
-4. **Presentation (UI)** — фронтенд, который взаимодействует с backend через REST API.
+## Layers
 
-## Слои
+### Domain
 
-### 1. Domain
+Path:
 
-В слое домена определяются основные понятия и правила системы. Домен не зависит от деталей реализации (HTTP, SQLite). Здесь находятся:
+```text
+apps/api/src/domain
+```
 
-- **Player** — игрок с полями `id`, `name`, `elo`, `gamesPlayed`, `lastOpponents`, `colorHistory`.
-- **Match** — матч между двумя игроками: `id`, `playerId`, `opponentId`, `result` (win/lose), `eloBefore`, `eloAfter`, `opponentElo`, `color`, `algorithmUsed`, `createdAt`.
-- **QueueRequest** — заявка на матч: `id`, `playerId`, `createdAt`, `timeControl`.
-- **Elo** — модуль, реализующий формулу расчёта нового рейтинга ELO на основе текущего рейтинга игроков и результата.
-- **Score** — функция оценки качества пары игроков. Учёт разницы рейтингов, времени ожидания, баланса цвета и того, играли ли эти игроки недавно.
-- **MatchmakingAlgorithm** — интерфейс для алгоритмов подбора: определяет метод `findPair(queue: QueueRequest[]): Match | null`.
-- **Baseline**, **Greedy**, **BatchLite**, **HybridWeighted** — реализации `MatchmakingAlgorithm`.
+Contains core concepts:
 
-### 2. Services (Application)
+- `Player`
+- `Match`
+- `QueueRequest`
+- ELO calculator
+- matchmaking algorithms
 
-Слой сервисов связывает домен и инфраструктуру. Здесь реализуются use cases:
+Domain code does not depend on HTTP or file storage.
 
-- **registerPlayer(name)** — создание игрока, присвоение начального рейтинга.
-- **findMatch(playerId, algorithmType)** — добавление игрока в очередь и поиск соперника выбранным алгоритмом.
-- **completeMatch(match, result)** — финализация матча: случайное определение победителя, обновление ELO, сохранение матча и статистики.
-- **getProfile(playerId)** — получение информации о профиле (ELO, количество игр).
-- **getHistory(playerId)** — получение списка матчей игрока.
-- **getMetrics(algorithmType)** — расчёт усреднённых метрик: среднее время ожидания, средняя разница рейтингов, время работы алгоритма.
+### Application
 
-### 3. Infrastructure
+Path:
 
-Слой инфраструктуры содержит реализации хранилищ и адаптеров для работы со сторонними системами:
+```text
+apps/api/src/application
+```
 
-- **PlayerRepository** — работа с таблицей `players` (SQLite). Методы: `save(Player)`, `findById(id)`, `update(Player)`.
-- **MatchRepository** — работа с таблицей `matches`.
-- **QueueRepository** — очередь заявок. Реализована либо через таблицу `queue_requests`, либо как in‑memory структура, если это достаточно для целей симуляции.
-- **Database** — подключение к SQLite, миграции.
-- **HTTP server** — Express (Node.js). Реализует REST API и преобразует входящие запросы в вызовы сервисов.
+Contains use cases:
 
-### 4. Presentation (UI)
+- `RegisterPlayerCommand`
+- `RunMatchmakingCommand`
+- `CompleteMatchCommand`
+- `RunSimulationRoundCommand`
+- `CompareAlgorithmsCommand`
+- `SeedDemoDataCommand`
+- player and round queries
 
-Фронтенд написан на React (Typescript) и взаимодействует с backend через HTTP. UI состоит из нескольких страниц и компонентов:
+This layer coordinates repositories and domain logic.
 
-- **StartPage** — стартовая страница с кнопкой «Find Match» и выбором алгоритма.
-- **ProfilePage** — отображает имя, ELO, общее количество матчей. Загружает данные через endpoint `/players/:id`.
-- **HistoryPage** — показывает историю матчей: соперник, цвет, изменение рейтинга. Загружает данные через `/players/:id/history`.
-- **MatchResultModal** — модальное окно, которое показывается после завершения матча. Содержит текст «Победа!» или «Поражение!», изменение ELO и кнопку закрытия.
-- **Navbar** — навигационное меню между страницами.
-  Состояние текущего пользователя (playerId) хранится в localStorage и/или в React context/store.
+### Infrastructure
 
-## База данных
+Path:
 
-Используется легковесная **SQLite**. Схема БД минимальна:
+```text
+apps/api/src/infrastructure
+```
 
-- **players**: `id` (integer, primary key), `name` (text), `elo` (integer), `gamesPlayed` (integer), `createdAt` (datetime).
-- **matches**: `id` (integer, primary key), `playerId` (integer), `opponentId` (integer), `result` (text), `eloBefore` (integer), `eloAfter` (integer), `opponentElo` (integer), `color` (text), `algorithmUsed` (text), `createdAt` (datetime).
-- **queue_requests**: `id` (integer, primary key), `playerId` (integer), `createdAt` (datetime), `timeControl` (text).
+Contains:
 
-Для тестирования можно сгенерировать N рандомных игроков при старте приложения.
+- JSON store utilities;
+- repositories for players, matches, queue requests, metrics, and rounds;
+- random result resolver.
 
-## Взаимодействия
+The JSON store is not meant to be production-grade. It is used because it is transparent and easy to demonstrate in a lab setting.
 
-Ниже приведены упрощённые последовательности действий.
+### Presentation
 
-### Регистрация игрока
+Path:
 
-1. UI отправляет POST `/players` с полем `name`.
-2. Backend вызывает сервис `registerPlayer`, который создаёт `Player` с базовым ELO (например 1200), сохраняет в `PlayerRepository` и возвращает DTO.
-3. UI сохраняет `playerId` и перенаправляет на страницу профиля.
+```text
+apps/api/src/presentation/http
+```
 
-### Поиск матча
+Contains:
 
-1. UI отправляет POST `/match/find` с `playerId` и выбранным `algorithmType` (baseline, greedy, batch_lite, hybrid_weighted).
-2. Backend добавляет заявку в очередь (`QueueRepository`).
-3. Запускается выбранный алгоритм, который анализирует очередь и находит оптимальную пару. Если пара найдена, создаётся объект `Match`.
-4. Сервис `completeMatch` случайно определяет победителя (50/50), пересчитывает ELO обоих игроков через `Elo`, сохраняет `Match` в репозиторий.
-5. Endpoint возвращает результат матча (соперник, новое значение ELO, исход).
-6. UI показывает `MatchResultModal`, затем обновляет профиль и историю.
+- HTTP routes;
+- JSON parsing helpers;
+- validation helpers;
+- CORS response helpers.
 
-### Получение истории и метрик
+The route layer is intentionally thin. It validates HTTP input and delegates work to application commands.
 
-1. UI отправляет GET `/players/:id/history` → возвращается массив матчей.
-2. UI отправляет GET `/metrics?algorithm=greedy` → возвращаются усреднённые показатели качества для указанного алгоритма.
+### Frontend
 
-## Распределение по команде
+Path:
 
-- **Тимлид / Backend Dev**: организует репозиторий, описывает архитектуру, пишет core домен, сервисы и базовые алгоритмы, настраивает базу.
-- **Backend Dev**: реализует все репозитории, алгоритмы подбора, REST endpoints, метрики.
-- **Frontend Dev**: создаёт React приложение, верстает UI, интегрирует API.
-- **Дизайнер**: подготавливает макеты и общую визуальную стилистику (цвета, шрифты, расположение элементов). В проекте предлагается минимальный дизайн, ориентированный на функциональность.
+```text
+apps/web/src
+```
 
-## Заключение
+The frontend is a React + Bootstrap + Vite dashboard.
 
-Эта архитектура проста, но разделение на слои помогает поддерживать код чистым и понятным. Реальные алгоритмы матчмейкинга могут быть гораздо сложнее, но для учебной симуляции достаточно baseline, greedy и batch lite реализаций. Основная цель — продемонстрировать подход к проектированию, разбиению задач и коллективной работе над небольшим проектом.
+Important files:
+
+- `App.jsx` - application composition and actions.
+- `api.js` - REST client.
+- `algorithms.js` - algorithm metadata for UI.
+- `format.js` - formatting helpers.
+- `rounds.js` - round selection helpers.
+- `components/*` - visual components.
+
+Main visual components:
+
+- `HeroShowcase`
+- `AlgorithmPicker`
+- `MetricCard`
+- `PlayerTable`
+- `RoundView`
+- `Comparison`
+- `RoundHistory`
+
+## Backend Dependencies
+
+The backend intentionally uses only Node.js built-in modules.
+
+Reasons:
+
+- easier to run on another computer;
+- no database installation;
+- no framework setup;
+- the focus stays on algorithms.
+
+## Data Store
+
+The store file is:
+
+```text
+apps/api/data/matchmaking.json
+```
+
+It contains:
+
+- counters;
+- players;
+- matches;
+- queue requests;
+- algorithm metrics;
+- simulation rounds.
+
+The folder is ignored by Git because it is runtime data.
+
+## Simulation Round
+
+`RunSimulationRoundCommand` does this:
+
+1. Clears the queue.
+2. Reads all players.
+3. Adds every player to the queue with simulated waiting timestamps.
+4. Repeatedly asks the selected algorithm for one pair.
+5. Removes paired players from the queue.
+6. Completes each match.
+7. Updates ELO.
+8. Builds round-level metrics.
+9. Saves the round for dashboard/history display.
+
+## Fair Comparison
+
+`CompareAlgorithmsCommand` runs all algorithms in a controlled way:
+
+1. Seed the same demo pool.
+2. Run `baseline`.
+3. Reset and seed the same demo pool.
+4. Run `greedy`.
+5. Repeat for `batch_lite` and `hybrid_weighted`.
+
+This avoids unfair comparisons where later algorithms receive already-changed ELO values.
+
+## Algorithm Contract
+
+Each algorithm exposes:
+
+```js
+findPair(queue, nowIso, options)
+```
+
+It returns either:
+
+```js
+{
+  left,
+  right,
+  algorithm,
+  ratingDiff,
+  estimatedWaitSeconds,
+  debug
+}
+```
+
+or `null` if no pair can be selected.
+
+## Frontend Data Flow
+
+Initial load:
+
+```text
+GET /players
+GET /simulation/rounds?limit=24
+```
+
+Single selected round:
+
+```text
+POST /simulation/round
+GET /players
+GET /simulation/rounds?limit=24
+```
+
+Full comparison:
+
+```text
+POST /simulation/compare
+```
+
+The comparison endpoint already returns the players and rounds needed by the UI.
+
+## Extension Points
+
+Good future improvements:
+
+- deterministic result resolver for reproducible tests;
+- larger synthetic datasets;
+- median and percentile metrics;
+- real charting library;
+- import/export experiment results;
+- SQLite/PostgreSQL persistence;
+- automated integration tests for endpoints.

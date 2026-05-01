@@ -1,131 +1,51 @@
 # Matchmaking System IAPS
 
-Backend-first MVP для дисциплины **IAPS21.1**. Проект моделирует очередь игроков, работу алгоритмов матчмейкинга и симуляцию матчей без зависимости от фронтенда.
+Algorithm-focused matchmaking simulator for the IAPS course. The project models a player pool, queue-based pairing strategies, match simulation, ELO updates, algorithm metrics, and a React dashboard for live demonstration.
 
-## Текущий стек
+The main goal is not CRUD. The main goal is to demonstrate how different matchmaking algorithms behave on the same set of players.
 
-- **Backend**: Node.js (ES modules, layered architecture, built-in `node:http`)
-- **Frontend**: React + Bootstrap + Vite (`apps/web`)
-- **Persistence**: локальное файловое хранилище JSON в `apps/api/data/matchmaking.json`
-- **Monorepo**: lightweight monorepo layout (no external packages required for the API demo)
-- **Shared package**: DTO и общие типы в `packages/shared`
+## Stack
 
-> Проект не использует `node:sqlite`, поэтому запускается на обычном Node.js 20.x и выше без установки дополнительных пакетов.
+- Backend: Node.js, ES modules, built-in `node:http`
+- Frontend: React, Bootstrap, Vite
+- Persistence: local JSON store at `apps/api/data/matchmaking.json`
+- Shared package: common algorithm type lists in `packages/shared`
+- Runtime target: Node.js 20+
 
-## Улучшённая архитектура
+No external backend database is required. The JSON store is used intentionally to keep the lab project easy to run and inspect.
 
-Проект разделён на 4 уровня:
+## What The App Demonstrates
 
-1. **Domain** — сущности, расчёт ELO, алгоритмы матчмейкинга.
-2. **Application** — сценарии (`registerPlayer`, `runMatchmaking`, `completeMatch`, queries).
-3. **Infrastructure** — файловое хранилище, репозитории, random result resolver.
-4. **Presentation** — HTTP API на встроенном `node:http`.
+- A demo pool of players with different ELO ratings.
+- Four matchmaking algorithms:
+  - `baseline`
+  - `greedy`
+  - `batch_lite`
+  - `hybrid_weighted`
+- Full simulation rounds where all available players are paired.
+- Match completion with random winner selection.
+- ELO changes after every match.
+- Algorithm comparison by concrete metrics.
+- A React dashboard with player pool, latest round, pair cards, comparison cards, and round history.
 
-Главное архитектурное улучшение относительно исходной идеи: алгоритмы возвращают **PairCandidate**, а не `Match`. Это отделяет поиск пары от завершения матча и упрощает развитие системы.
+## Metrics
 
-## Реализованные endpoints
+The simulator uses these metrics for algorithm comparison:
 
-- `GET /` — healthcheck
-- `POST /players` — создание игрока
-- `GET /players/:id` — профиль игрока
-- `GET /players/:id/history` — история матчей игрока
-- `POST /match/find` — постановка в очередь и попытка найти матч
-- `GET /metrics?algorithm=baseline|greedy|batch_lite|hybrid_weighted` — агрегированные метрики
-- `POST /demo/seed` — сброс и наполнение базы демонстрационными игроками
-- `POST /demo/reset` — очистка demo-хранилища
-- `GET /players` — список игроков и их текущий ELO
-- `POST /simulation/round` — массовый раунд: все игроки из базы ищут пары выбранным алгоритмом
-- `POST /simulation/compare` — честный прогон всех алгоритмов на одинаковом demo-наборе
-- `GET /simulation/rounds` — история раундов для frontend-дашборда
+| Metric | Meaning | Better |
+|---|---|---|
+| `pairsCount` | Number of pairs created in a round | Higher |
+| `matchedPlayers` | Number of players that received a match | Higher |
+| `unmatchedPlayers` | Number of players left without a pair | Lower |
+| `matchRate` | Matched players divided by all players | Higher |
+| `avgRatingDiff` | Average absolute ELO difference inside pairs | Lower |
+| `minRatingDiff` | Best ELO difference in the round | Lower |
+| `maxRatingDiff` | Worst ELO difference in the round | Lower |
+| `avgWaitTime` | Average simulated waiting time in seconds | Lower |
+| `avgComputeTimeMs` | Average compute time per selected pair | Lower |
+| `qualityScore` | Weighted educational score from 0 to 100 | Higher |
 
-## Как запустить проект
-
-### 1. Проверить версию Node.js
-
-```bash
-node -v
-```
-
-Рекомендуемый диапазон: **Node.js 20+**.
-
-### 2. Запустить API
-
-```bash
-npm run start:api
-```
-
-После запуска API будет доступен по адресу `http://localhost:3000`.
-
-### 3. Запустить frontend
-
-```bash
-npm --prefix apps/web install
-npm run start:web
-```
-
-Frontend будет доступен по адресу `http://127.0.0.1:5173`.
-
-В интерфейсе можно:
-
-- заполнить demo-базу игроками с разным ELO;
-- выбрать алгоритм;
-- запустить раунд матчмейкинга;
-- запустить все алгоритмы одной кнопкой для быстрого сравнения;
-- увидеть пары, победителей и изменение ELO;
-- сравнить алгоритмы по конкретным метрикам и графикам.
-
-### 4. Полный демо-прогон одной командой
-
-```bash
-npm run demo
-```
-
-Эта команда:
-- очищает demo-хранилище,
-- поднимает API,
-- создаёт 6 игроков,
-- прогоняет `baseline`, `greedy`, `batch_lite` и `hybrid_weighted`,
-- показывает профили, историю и метрики,
-- завершает сервер автоматически.
-
-### 5. Отдельные служебные команды
-
-```bash
-npm run reset:db
-npm run seed:demo
-```
-
-`seed:demo` полезен, если API уже запущен и нужно быстро наполнить систему демонстрационными игроками.
-
-
-### Новый алгоритм: `hybrid_weighted`
-
-`hybrid_weighted` строит все уникальные пары из текущей очереди, считает для каждой пары итоговый взвешенный скор:
-
-- `ratingScore = 1 / (1 + |ratingA - ratingB|)`
-- `waitScore = average(waitASeconds, waitBSeconds)`
-- нормализация обоих компонентов в диапазон `[0, 1]`
-- `finalScore = alpha * normalizedRatingScore + beta * normalizedWaitScore`
-
-После этого пары сортируются по `finalScore` по убыванию, и матчи собираются жадно без конфликтов (игрок может попасть максимум в одну пару за прогон).
-
-По умолчанию используются `alpha = 0.7`, `beta = 0.3`, но их можно передать в `POST /match/find` для алгоритма `hybrid_weighted`.
-
-## Метрики сравнения алгоритмов
-
-Для защиты и отчёта используются конкретные численные показатели:
-
-- `pairsCount` — сколько пар сформировано за раунд.
-- `matchedPlayers` — сколько игроков получили матч.
-- `unmatchedPlayers` — сколько игроков осталось без пары.
-- `matchRate` — доля игроков, которым удалось найти соперника.
-- `avgRatingDiff` — средняя разница ELO внутри сформированных пар.
-- `minRatingDiff` / `maxRatingDiff` — лучший и худший разброс ELO за раунд.
-- `avgWaitTime` — среднее время ожидания пары.
-- `avgComputeTimeMs` — среднее время вычисления одной пары.
-- `qualityScore` — итоговая учебная оценка алгоритма по шкале 0-100.
-
-Итоговая оценка считается как взвешенная сумма:
+Current score formula:
 
 ```text
 qualityScore = matchRate * 0.4
@@ -133,29 +53,142 @@ qualityScore = matchRate * 0.4
              + waitQuality * 0.2
 ```
 
-Где `ratingQuality` уменьшается при росте средней разницы ELO, а `waitQuality` уменьшается при росте времени ожидания. Это позволяет сравнивать алгоритмы не словами, а воспроизводимыми числами.
+`ratingQuality` decreases when `avgRatingDiff` grows. `waitQuality` decreases when `avgWaitTime` grows.
 
-## Сценарий для презентации
+## Algorithms
 
-1. Выполнить `npm run demo`.
-2. Показать, что для каждого алгоритма сначала приходит состояние `waiting`, а затем — готовый матч.
-3. Показать обновлённый профиль игрока и историю матчей.
-4. Показать метрики по каждому алгоритму.
+### Baseline
 
-## Примеры ручных запросов
+Scans all possible pairs in the queue and selects the pair with the smallest ELO difference.
 
-Создание игрока:
+- Strength: very easy to explain, strong rating proximity for one pair.
+- Weakness: does not directly optimize the whole round and does not consider waiting fairness.
 
-```bash
-curl -X POST http://localhost:3000/players \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Ivan"}'
+### Greedy
+
+Sorts queue entries by waiting time and selects the first acceptable close-rating opponent for the longest-waiting player.
+
+- Strength: practical queue servicing strategy.
+- Weakness: local decision, not globally optimal.
+
+### Batch Lite
+
+Takes a batch of queue entries, sorts them by rating, and pairs close neighbours.
+
+- Strength: useful batch-processing model for full simulation rounds.
+- Weakness: still simplified and not a full optimization solver.
+
+### Hybrid Weighted
+
+Builds candidate pairs and scores them by rating quality and waiting time:
+
+```text
+ratingScore = 1 / (1 + abs(ratingA - ratingB))
+waitScore = average(waitASeconds, waitBSeconds)
+finalScore = alpha * normalizedRatingScore + beta * normalizedWaitScore
 ```
 
-Поиск матча:
+Default weights:
+
+```text
+alpha = 0.7
+beta = 0.3
+```
+
+The algorithm sorts candidate pairs by `finalScore` and greedily selects non-overlapping pairs.
+
+## Project Structure
+
+```text
+apps/
+  api/
+    src/
+      application/     use cases and queries
+      domain/          entities, ELO service, matchmaking algorithms
+      infrastructure/  JSON store, repositories, result resolver
+      presentation/    HTTP routes and utilities
+  web/
+    src/
+      components/      React UI components
+      api.js           frontend API client
+      algorithms.js    algorithm metadata
+      format.js        formatting helpers
+      rounds.js        round helpers
+packages/
+  shared/              shared algorithm lists
+docs/
+  API.md
+  ARCHITECTURE.md
+  ALGORITHMS.md
+  TASKS.md
+```
+
+## Run Locally
+
+Install frontend dependencies:
 
 ```bash
-curl -X POST http://localhost:3000/match/find \
-  -H 'Content-Type: application/json' \
-  -d '{"playerId":1,"algorithm":"baseline"}'
+npm --prefix apps/web install
 ```
+
+Start backend:
+
+```bash
+npm run start:api
+```
+
+Start frontend in another terminal:
+
+```bash
+npm run start:web
+```
+
+Open:
+
+```text
+http://127.0.0.1:5173
+```
+
+## Demo Flow
+
+1. Click `Reset demo pool` to create the repeatable player set.
+2. Click `Run selected round` to run one algorithm.
+3. Click `Run all algorithms` to compare all algorithms on the same demo dataset.
+4. Show:
+   - player ELO changes;
+   - generated pairs;
+   - winners and ELO deltas;
+   - algorithm comparison cards;
+   - round history.
+
+## API Highlights
+
+- `GET /players`
+- `POST /players`
+- `GET /players/:id`
+- `GET /players/:id/history`
+- `POST /match/find`
+- `GET /metrics?algorithm=baseline`
+- `POST /demo/seed`
+- `POST /demo/reset`
+- `POST /simulation/round`
+- `POST /simulation/compare`
+- `GET /simulation/rounds`
+
+See [docs/API.md](docs/API.md) for details.
+
+## Verification
+
+Backend syntax check:
+
+```bash
+npm run check
+```
+
+Frontend production build:
+
+```bash
+npm --prefix apps/web run build
+```
+
+Both commands should complete successfully.
