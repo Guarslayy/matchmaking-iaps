@@ -125,29 +125,83 @@ docs/
 
 ## Run Locally
 
-Install frontend dependencies:
+1. Скачать проект
 
-```bash
+git clone https://github.com/Guarslayy/matchmaking-iaps.git
+cd matchmaking-iaps
+2. Проверить Node.js
+
+Нужен Node.js 20+.
+
+node -v
+Если Node.js не установлен: скачать с 
+nodejs.org
+.
+
+3. Установить зависимости frontend
+
 npm --prefix apps/web install
-```
+4. Запустить backend
 
-Start backend:
+В первом терминале:
 
-```bash
 npm run start:api
-```
+После запуска API работает тут:
 
-Start frontend in another terminal:
+http://localhost:3000
+Проверка:
 
-```bash
+http://localhost:3000
+Должно вернуть:
+
+{
+  "message": "API is running"
+}
+5. Запустить frontend
+
+Во втором терминале:
+
 npm run start:web
-```
+После запуска открыть:
 
-Open:
-
-```text
 http://127.0.0.1:5173
-```
+6. Как пользоваться приложением
+
+На странице:
+
+Нажать Reset demo pool - создаст demo-базу игроков.
+Выбрать алгоритм.
+Нажать Run selected round - запустит один алгоритм.
+Нажать Run all algorithms - сравнит все алгоритмы на одинаковом наборе игроков.
+7. Проверка перед защитой
+
+Backend:
+
+npm run check
+Frontend:
+
+npm --prefix apps/web run build
+Частые проблемы
+
+Если frontend открылся, но данные не грузятся:
+
+убедиться, что backend запущен;
+открыть http://localhost:3000;
+если API не отвечает, перезапустить npm run start:api.
+Если порт занят:
+
+закрыть старый терминал с сервером;
+или остановить процессы Node.js;
+потом снова запустить backend и frontend.
+Если frontend показывает старую версию:
+
+Ctrl + F5
+То есть для обычного запуска нужны два терминала:
+
+npm run start:api
+и
+
+npm run start:web
 
 ## Demo Flow
 
