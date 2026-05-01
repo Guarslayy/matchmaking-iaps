@@ -36,6 +36,25 @@ export class SqliteMatchRepository {
     });
   }
 
+  recordSimulationRound(round) {
+    return updateStore((store) => {
+      const saved = {
+        ...round,
+        id: nextId(store, 'simulationRounds'),
+      };
+      store.simulationRounds.push(saved);
+      return saved;
+    });
+  }
+
+  listSimulationRounds(limit = 12) {
+    const store = readStore();
+    return store.simulationRounds
+      .slice()
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.id - a.id)
+      .slice(0, limit);
+  }
+
   getMetrics(algorithm) {
     const store = readStore();
     const entries = store.algorithmMetrics.filter((row) => row.algorithm === algorithm);
@@ -46,6 +65,12 @@ export class SqliteMatchRepository {
         avgWaitTime: 0,
         avgRatingDiff: 0,
         avgComputeTime: 0,
+        minWaitTime: 0,
+        maxWaitTime: 0,
+        minRatingDiff: 0,
+        maxRatingDiff: 0,
+        matchRate: 0,
+        qualityScore: 0,
         matchesPlayed: 0,
       };
     }
@@ -57,11 +82,27 @@ export class SqliteMatchRepository {
       return acc;
     }, { wait: 0, diff: 0, compute: 0 });
 
+    const avgWaitTime = total.wait / entries.length;
+    const avgRatingDiff = total.diff / entries.length;
+    const avgComputeTime = total.compute / entries.length;
+    const ratingDiffs = entries.map((entry) => entry.ratingDiff);
+    const waitTimes = entries.map((entry) => entry.waitTimeSeconds);
+    const matchRate = 1;
+    const ratingQuality = Math.max(0, 1 - avgRatingDiff / 400);
+    const waitQuality = Math.max(0, 1 - avgWaitTime / 180);
+    const qualityScore = Math.round((matchRate * 0.4 + ratingQuality * 0.4 + waitQuality * 0.2) * 100);
+
     return {
       algorithm,
-      avgWaitTime: total.wait / entries.length,
-      avgRatingDiff: total.diff / entries.length,
-      avgComputeTime: total.compute / entries.length,
+      avgWaitTime,
+      avgRatingDiff,
+      avgComputeTime,
+      minWaitTime: Math.min(...waitTimes),
+      maxWaitTime: Math.max(...waitTimes),
+      minRatingDiff: Math.min(...ratingDiffs),
+      maxRatingDiff: Math.max(...ratingDiffs),
+      matchRate,
+      qualityScore,
       matchesPlayed: entries.length,
     };
   }

@@ -22,6 +22,14 @@ export class SqlitePlayerRepository {
     return row ? new Player(row) : null;
   }
 
+  findAll() {
+    const store = readStore();
+    return store.players
+      .slice()
+      .sort((a, b) => b.elo - a.elo || a.id - b.id)
+      .map((row) => new Player(row));
+  }
+
   update(player) {
     return updateStore((store) => {
       const data = player.toJSON();

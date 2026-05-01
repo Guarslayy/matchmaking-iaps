@@ -1,140 +1,166 @@
-import { algorithmTypes } from '../../../../../packages/shared/src/types.js';
+import {
+  isAlgorithmType,
+  parseJsonBody,
+  readAlgorithmBody,
+  readNumericQueryParam,
+  sendJson,
+} from './http-utils.js';
 
-function isAlgorithmType(value) {
-  return algorithmTypes.includes(value);
+function sendError(res, status, message) {
+  sendJson(res, status, { message });
 }
 
-function sendJson(res, status, payload) {
-  const body = JSON.stringify(payload, null, 2);
-  res.writeHead(status, { 'Content-Type': 'application/json' });
-  res.end(body);
+async function createPlayer(req, res, deps) {
+  try {
+    const body = await parseJsonBody(req);
+    const name = String(body.name ?? '').trim();
+    if (!name) {
+      sendError(res, 400, 'name is required');
+      return;
+    }
+
+    const initialElo = typeof body.initialElo === 'number' ? body.initialElo : 1200;
+    sendJson(res, 201, deps.registerPlayer.execute(name, new Date().toISOString(), initialElo));
+  } catch {
+    sendError(res, 400, 'invalid json body');
+  }
 }
 
-function parseJsonBody(req) {
-  return new Promise((resolve, reject) => {
-    let raw = '';
-    req.on('data', (chunk) => {
-      raw += chunk;
-    });
-    req.on('end', () => {
-      if (!raw) {
-        resolve({});
-        return;
-      }
-      try {
-        resolve(JSON.parse(raw));
-      } catch (error) {
-        reject(error);
-      }
-    });
-    req.on('error', reject);
-  });
+async function findMatch(req, res, deps) {
+  try {
+    const body = await parseJsonBody(req);
+    if (typeof body.playerId !== 'number') {
+      sendError(res, 400, 'playerId is required');
+      return;
+    }
+
+    const { algorithm, options } = readAlgorithmBody(body);
+    const result = deps.runMatchmaking.execute(body.playerId, algorithm, new Date().toISOString(), options);
+    sendJson(res, result.message === 'waiting' ? 202 : 200, result);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Player not found') {
+      sendError(res, 404, 'player not found');
+      return;
+    }
+
+    sendError(res, 400, error instanceof Error ? error.message : 'invalid json body');
+  }
+}
+
+async function runSimulationRound(req, res, deps) {
+  try {
+    const body = await parseJsonBody(req);
+    const { algorithm, options } = readAlgorithmBody(body, 'hybrid_weighted');
+    const round = deps.runSimulationRound.execute(algorithm, new Date().toISOString(), options);
+    sendJson(res, 201, round);
+  } catch (error) {
+    sendError(res, 400, error instanceof Error ? error.message : 'invalid json body');
+  }
+}
+
+function getPlayer(req, res, deps, playerId) {
+  const player = deps.getPlayerProfile.execute(playerId);
+  if (!player) {
+    sendError(res, 404, 'player not found');
+    return;
+  }
+
+  sendJson(res, 200, player);
+}
+
+function getPlayerHistory(req, res, deps, playerId) {
+  const player = deps.getPlayerProfile.execute(playerId);
+  if (!player) {
+    sendError(res, 404, 'player not found');
+    return;
+  }
+
+  sendJson(res, 200, deps.getPlayerHistory.execute(playerId));
+}
+
+function getMetrics(reqUrl, res, deps) {
+  const algorithm = reqUrl.searchParams.get('algorithm');
+  if (!algorithm || !isAlgorithmType(algorithm)) {
+    sendError(res, 400, 'algorithm query param is required and must be valid');
+    return;
+  }
+
+  sendJson(res, 200, deps.getMetrics.execute(algorithm));
 }
 
 export async function handleHttpRequest(req, res, deps) {
-  const url = new URL(req.url, 'http://localhost');
-  const pathname = url.pathname;
+  const reqUrl = new URL(req.url, 'http://localhost');
+  const pathname = reqUrl.pathname;
   const method = req.method ?? 'GET';
+
+  if (method === 'OPTIONS') {
+    sendJson(res, 204, {});
+    return;
+  }
 
   if (method === 'GET' && pathname === '/') {
     sendJson(res, 200, { message: 'API is running' });
     return;
   }
 
+  if (method === 'GET' && pathname === '/players') {
+    sendJson(res, 200, deps.listPlayers.execute());
+    return;
+  }
+
   if (method === 'POST' && pathname === '/players') {
-    try {
-      const body = await parseJsonBody(req);
-      if (!body.name || !String(body.name).trim()) {
-        sendJson(res, 400, { message: 'name is required' });
-        return;
-      }
-      const player = deps.registerPlayer.execute(String(body.name).trim(), new Date().toISOString());
-      sendJson(res, 201, player);
-      return;
-    } catch {
-      sendJson(res, 400, { message: 'invalid json body' });
-      return;
-    }
+    await createPlayer(req, res, deps);
+    return;
   }
 
   const playerMatch = pathname.match(/^\/players\/(\d+)$/);
   if (method === 'GET' && playerMatch) {
-    const playerId = Number(playerMatch[1]);
-    const player = deps.getPlayerProfile.execute(playerId);
-    if (!player) {
-      sendJson(res, 404, { message: 'player not found' });
-      return;
-    }
-    sendJson(res, 200, player);
+    getPlayer(req, res, deps, Number(playerMatch[1]));
     return;
   }
 
   const historyMatch = pathname.match(/^\/players\/(\d+)\/history$/);
   if (method === 'GET' && historyMatch) {
-    const playerId = Number(historyMatch[1]);
-    const player = deps.getPlayerProfile.execute(playerId);
-    if (!player) {
-      sendJson(res, 404, { message: 'player not found' });
-      return;
-    }
-    sendJson(res, 200, deps.getPlayerHistory.execute(playerId));
+    getPlayerHistory(req, res, deps, Number(historyMatch[1]));
     return;
   }
 
   if (method === 'POST' && pathname === '/match/find') {
-    try {
-      const body = await parseJsonBody(req);
-      if (typeof body.playerId !== 'number') {
-        sendJson(res, 400, { message: 'playerId is required' });
-        return;
-      }
-      const algorithm = body.algorithm ?? 'baseline';
-      if (!isAlgorithmType(algorithm)) {
-        sendJson(res, 400, { message: 'unknown algorithm' });
-        return;
-      }
-
-      const options = {};
-      if (algorithm === 'hybrid_weighted') {
-        if (body.alpha !== undefined && typeof body.alpha !== 'number') {
-          sendJson(res, 400, { message: 'alpha must be a number' });
-          return;
-        }
-        if (body.beta !== undefined && typeof body.beta !== 'number') {
-          sendJson(res, 400, { message: 'beta must be a number' });
-          return;
-        }
-
-        options.alpha = body.alpha ?? 0.7;
-        options.beta = body.beta ?? 0.3;
-      }
-
-      const result = deps.runMatchmaking.execute(body.playerId, algorithm, new Date().toISOString(), options);
-      if (result.message === 'waiting') {
-        sendJson(res, 202, result);
-        return;
-      }
-      sendJson(res, 200, result);
-      return;
-    } catch (error) {
-      if (error instanceof Error && error.message === 'Player not found') {
-        sendJson(res, 404, { message: 'player not found' });
-        return;
-      }
-      sendJson(res, 400, { message: 'invalid json body' });
-      return;
-    }
-  }
-
-  if (method === 'GET' && pathname === '/metrics') {
-    const algorithm = url.searchParams.get('algorithm');
-    if (!algorithm || !isAlgorithmType(algorithm)) {
-      sendJson(res, 400, { message: 'algorithm query param is required and must be valid' });
-      return;
-    }
-    sendJson(res, 200, deps.getMetrics.execute(algorithm));
+    await findMatch(req, res, deps);
     return;
   }
 
-  sendJson(res, 404, { message: 'route not found' });
+  if (method === 'GET' && pathname === '/metrics') {
+    getMetrics(reqUrl, res, deps);
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/demo/reset') {
+    deps.resetDemoData();
+    sendJson(res, 200, { message: 'demo data reset' });
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/demo/seed') {
+    sendJson(res, 201, deps.seedDemoData.execute());
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/simulation/round') {
+    await runSimulationRound(req, res, deps);
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/simulation/compare') {
+    sendJson(res, 201, deps.compareAlgorithms.execute());
+    return;
+  }
+
+  if (method === 'GET' && pathname === '/simulation/rounds') {
+    const limit = readNumericQueryParam(reqUrl.searchParams, 'limit', 12);
+    sendJson(res, 200, deps.listSimulationRounds.execute(limit));
+    return;
+  }
+
+  sendError(res, 404, 'route not found');
 }

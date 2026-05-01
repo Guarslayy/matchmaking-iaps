@@ -41,4 +41,11 @@ export class SqliteQueueRepository {
       return null;
     });
   }
+
+  clear() {
+    updateStore((store) => {
+      store.queueRequests = [];
+      return null;
+    });
+  }
 }

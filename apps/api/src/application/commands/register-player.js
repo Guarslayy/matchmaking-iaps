@@ -5,7 +5,7 @@ export class RegisterPlayerCommand {
     this.playerRepository = playerRepository;
   }
 
-  execute(name, nowIso) {
-    return toPlayerDTO(this.playerRepository.create(name, nowIso));
+  execute(name, nowIso, initialElo = 1200) {
+    return toPlayerDTO(this.playerRepository.create(name, nowIso, initialElo));
   }
 }
