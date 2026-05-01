@@ -61,22 +61,13 @@ qualityScore = matchRate * 0.4
 
 Scans all possible pairs in the queue and selects the pair with the smallest ELO difference.
 
-- Strength: very easy to explain, strong rating proximity for one pair.
-- Weakness: does not directly optimize the whole round and does not consider waiting fairness.
-
 ### Greedy
 
 Sorts queue entries by waiting time and selects the first acceptable close-rating opponent for the longest-waiting player.
 
-- Strength: practical queue servicing strategy.
-- Weakness: local decision, not globally optimal.
-
 ### Batch Lite
 
 Takes a batch of queue entries, sorts them by rating, and pairs close neighbours.
-
-- Strength: useful batch-processing model for full simulation rounds.
-- Weakness: still simplified and not a full optimization solver.
 
 ### Hybrid Weighted
 
@@ -88,14 +79,12 @@ waitScore = average(waitASeconds, waitBSeconds)
 finalScore = alpha * normalizedRatingScore + beta * normalizedWaitScore
 ```
 
-Default weights:
+Default values:
 
 ```text
 alpha = 0.7
 beta = 0.3
 ```
-
-The algorithm sorts candidate pairs by `finalScore` and greedily selects non-overlapping pairs.
 
 ## Project Structure
 
@@ -120,88 +109,107 @@ docs/
   API.md
   ARCHITECTURE.md
   ALGORITHMS.md
+  LAB_REPORT.md
   TASKS.md
 ```
 
 ## Run Locally
 
-1. Скачать проект
+### Quick Start For The Team
 
+Use these steps if you are opening the project for the first time.
+
+1. Clone the repository:
+
+```bash
 git clone https://github.com/Guarslayy/matchmaking-iaps.git
 cd matchmaking-iaps
-2. Проверить Node.js
+```
 
-Нужен Node.js 20+.
+2. Check Node.js version:
 
+```bash
 node -v
-Если Node.js не установлен: скачать с 
-nodejs.org
-.
+```
 
-3. Установить зависимости frontend
+Node.js 20+ is recommended. If Node.js is missing, install it from `https://nodejs.org/`.
 
+3. Install frontend dependencies:
+
+```bash
 npm --prefix apps/web install
-4. Запустить backend
+```
 
-В первом терминале:
+4. Start the backend in the first terminal:
 
+```bash
 npm run start:api
-После запуска API работает тут:
+```
 
+Backend URL:
+
+```text
 http://localhost:3000
-Проверка:
+```
 
-http://localhost:3000
-Должно вернуть:
+Opening this URL should return:
 
+```json
 {
   "message": "API is running"
 }
-5. Запустить frontend
+```
 
-Во втором терминале:
+5. Start the frontend in the second terminal:
 
+```bash
 npm run start:web
-После запуска открыть:
+```
 
+Frontend URL:
+
+```text
 http://127.0.0.1:5173
-6. Как пользоваться приложением
+```
 
-На странице:
+6. Use the app:
 
-Нажать Reset demo pool - создаст demo-базу игроков.
-Выбрать алгоритм.
-Нажать Run selected round - запустит один алгоритм.
-Нажать Run all algorithms - сравнит все алгоритмы на одинаковом наборе игроков.
-7. Проверка перед защитой
+- click `Reset demo pool` to create demo players;
+- choose an algorithm;
+- click `Run selected round` to run one algorithm;
+- click `Run all algorithms` to compare all algorithms on the same dataset.
 
-Backend:
+7. If the page looks outdated, hard-refresh the browser:
 
-npm run check
-Frontend:
-
-npm --prefix apps/web run build
-Частые проблемы
-
-Если frontend открылся, но данные не грузятся:
-
-убедиться, что backend запущен;
-открыть http://localhost:3000;
-если API не отвечает, перезапустить npm run start:api.
-Если порт занят:
-
-закрыть старый терминал с сервером;
-или остановить процессы Node.js;
-потом снова запустить backend и frontend.
-Если frontend показывает старую версию:
-
+```text
 Ctrl + F5
-То есть для обычного запуска нужны два терминала:
+```
 
+In short, the project usually needs two terminals:
+
+```bash
 npm run start:api
-и
+```
 
+```bash
 npm run start:web
+```
+
+### Verification
+
+Backend syntax check:
+
+```bash
+npm run check
+```
+
+Frontend production build:
+
+```bash
+npm --prefix apps/web run build
+```
+
+Both commands should complete successfully.
 
 ## Demo Flow
 
@@ -231,18 +239,10 @@ npm run start:web
 
 See [docs/API.md](docs/API.md) for details.
 
-## Verification
+## Documentation
 
-Backend syntax check:
-
-```bash
-npm run check
-```
-
-Frontend production build:
-
-```bash
-npm --prefix apps/web run build
-```
-
-Both commands should complete successfully.
+- [REST API](docs/API.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Algorithms and Evaluation](docs/ALGORITHMS.md)
+- [Lab Report Draft](docs/LAB_REPORT.md)
+- [Project Tasks](docs/TASKS.md)
